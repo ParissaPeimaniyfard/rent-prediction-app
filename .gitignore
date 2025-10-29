@@ -1,0 +1,21 @@
+# OS / editor
+.DS_Store
+.ipynb_checkpoints/
+.vscode/
+__pycache__/
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv/
+venv/
+env/
+
+# Large/local data
+data/
+datasets/
+logs/
+
+# Do include artifacts (model files), but not huge raw data
