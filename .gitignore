@@ -17,5 +17,6 @@ env/
 data/
 datasets/
 logs/
+archive/
 
 # Do include artifacts (model files), but not huge raw data
