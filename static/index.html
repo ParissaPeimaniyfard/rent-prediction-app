@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Rent Predictor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; max-width: 720px; margin: 24px auto; padding: 0 12px; }
+    h1 { margin-bottom: 8px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 12px 0; }
+    label { display:block; font-weight:600; margin-top:10px; }
+    input, select { width: 100%; padding: 8px; margin-top: 6px; border-radius: 8px; border: 1px solid #ccc; }
+    button { margin-top: 16px; padding: 10px 14px; border: 0; border-radius: 10px; background:#000; color:#fff; cursor:pointer; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .muted { color:#666; font-size: 0.9rem; }
+    #result { font-size: 1.2rem; font-weight:700; margin-top: 14px; }
+    #error { color:#b00020; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <h1>Rent Predictor</h1>
+  <p class="muted">Enter details and get a predicted monthly rent (EUR).</p>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>Area (m²)</label>
+        <input id="areaSqm" type="number" step="1" value="45" required />
+      </div>
+      <div>
+        <label>Postal code (NL)</label>
+        <input id="postalCode" type="text" placeholder="e.g., 3511BA" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>City</label>
+        <input id="city" type="text" value="utrecht" required />
+      </div>
+      <div>
+        <label>PC4 (first 4 digits)</label>
+        <input id="pc4" type="text" placeholder="3511" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Latitude</label>
+        <input id="latitude" type="number" step="0.0001" value="52.0907" required />
+      </div>
+      <div>
+        <label>Longitude</label>
+        <input id="longitude" type="number" step="0.0001" value="5.1214" required />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Property type</label>
+        <select id="propertyType">
+          <option>apartment</option>
+          <option>studio</option>
+          <option>room</option>
+          <option>anti-squat</option>
+          <option>student residence</option>
+        </select>
+      </div>
+      <div>
+        <label>Furnish</label>
+        <select id="furnish">
+          <option>furnished</option>
+          <option>unfurnished</option>
+          <option>uncarpeted</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Internet</label>
+        <select id="internet"><option>yes</option><option>no</option></select>
+      </div>
+      <div>
+        <label>Pets</label>
+        <select id="pets"><option>no</option><option>yes</option><option>by mutual agreement</option></select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Kitchen</label>
+        <select id="kitchen"><option>own</option><option>shared</option></select>
+      </div>
+      <div>
+        <label>Shower</label>
+        <select id="shower"><option>own</option><option>shared</option></select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Toilet</label>
+        <select id="toilet"><option>own</option><option>shared</option></select>
+      </div>
+      <div>
+        <label>Living</label>
+        <select id="living"><option>own</option><option>shared</option></select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Smoking inside</label>
+        <select id="smokingInside"><option>no</option><option>yes</option><option>not important</option></select>
+      </div>
+      <div></div>
+    </div>
+
+    <button id="predictBtn">Predict</button>
+    <div id="result"></div>
+    <div id="error"></div>
+    <p class="muted">Tip: If you fill the full postal code (e.g. 3511BA), we’ll auto-fill PC4 as 3511.</p>
+  </div>
+
+  <script>
+    function extractPC4(s) {
+      if (!s) return "";
+      const m = s.toString().match(/(\d{4})/);
+      return m ? m[1] : "";
+    }
+
+    document.getElementById('postalCode').addEventListener('input', (e) => {
+      const pc4 = extractPC4(e.target.value);
+      if (pc4) document.getElementById('pc4').value = pc4;
+    });
+
+    document.getElementById('predictBtn').addEventListener('click', async () => {
+      const payload = {
+        areaSqm: Number(document.getElementById('areaSqm').value),
+        latitude: Number(document.getElementById('latitude').value),
+        longitude: Number(document.getElementById('longitude').value),
+        city: document.getElementById('city').value.trim().toLowerCase(),
+        pc4: extractPC4(document.getElementById('pc4').value),
+        propertyType: document.getElementById('propertyType').value,
+        furnish: document.getElementById('furnish').value,
+        internet: document.getElementById('internet').value,
+        kitchen: document.getElementById('kitchen').value,
+        shower: document.getElementById('shower').value,
+        toilet: document.getElementById('toilet').value,
+        living: document.getElementById('living').value,
+        smokingInside: document.getElementById('smokingInside').value,
+        pets: document.getElementById('pets').value
+      };
+
+      document.getElementById('error').textContent = "";
+      document.getElementById('result').textContent = "Predicting...";
+
+      try {
+        const res = await fetch('/predict', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        document.getElementById('result').textContent = `Predicted monthly rent: € ${Math.round(data.predicted_rent).toLocaleString()}`;
+      } catch (err) {
+        document.getElementById('result').textContent = "";
+        document.getElementById('error').textContent = "Error: " + err.message;
+      }
+    });
+  </script>
+</body>
+</html>

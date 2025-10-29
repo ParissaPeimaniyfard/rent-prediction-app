@@ -1,0 +1,1 @@
+{"num_cols": ["areaSqm", "latitude", "longitude", "city_prior", "pc4_prior"], "cat_cols": ["propertyType", "furnish", "internet", "kitchen", "shower", "toilet", "living", "smokingInside", "pets"]}
