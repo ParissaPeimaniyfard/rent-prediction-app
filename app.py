@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import joblib, json, pandas as pd, numpy as np
 from pathlib import Path
+from monitor import PRED_REQUESTS, PRED_ERRORS, predict_timer, MODEL_VERSION
 
 
 
@@ -13,6 +14,8 @@ pipe      = joblib.load(ART / "rent_pipeline_xgb.pkl")
 priors    = joblib.load(ART / "priors.pkl")
 feat      = json.load(open(ART / "features.json"))
 UPLIFT    = json.load(open(ART / "model_meta.json"))["uplift_factor"]
+MODEL_VERSION.labels(version="v1").set(1)
+
 
 gmean = float(priors["gmean"])
 city_prior_map = priors["city_prior"]
@@ -23,7 +26,12 @@ cat_cols = feat["cat_cols"]
 # --- FastAPI init ---
 app = FastAPI(title="Rent Prediction API")
 
+# Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Include monitoring router
+from monitor import router as monitor_router
+app.include_router(monitor_router)
 
 # --- Input schema ---
 class RentInput(BaseModel):
@@ -58,10 +66,26 @@ def predict_rent(data: RentInput):
     X_new = row[num_cols + cat_cols].copy()
     X_new[cat_cols] = X_new[cat_cols].astype("object")
 
-    pred = float(pipe.predict(X_new)[0])
-    return {"predicted_rent": round(pred, 2)}
+    
+    # --- Monitoring counters ---
+    PRED_REQUESTS.inc()  # count every prediction request
+    try:
+        with predict_timer():  # measure how long prediction takes
+            pred = float(pipe.predict(X_new)[0])
+        return {"predicted_rent": round(pred, 2)}
+    except Exception as e:
+        PRED_ERRORS.inc()  # count any failed predictions
+        raise
+
+
 
 
 @app.get("/", response_class=HTMLResponse)
 def home():
     return open("static/index.html", "r", encoding="utf-8").read()
+
+
+# --- Version endpoint (optional but nice) ---
+@app.get("/version")
+def version():
+    return {"model_version": "v1"}
