@@ -1,8 +1,11 @@
 from fastapi import FastAPI
+import uuid
+from fastapi import Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import joblib, json, pandas as pd, numpy as np
+from logging_setup import logger
 from pathlib import Path
 from monitor import PRED_REQUESTS, PRED_ERRORS, predict_timer, MODEL_VERSION
 
@@ -14,7 +17,9 @@ pipe      = joblib.load(ART / "rent_pipeline_xgb.pkl")
 priors    = joblib.load(ART / "priors.pkl")
 feat      = json.load(open(ART / "features.json"))
 UPLIFT    = json.load(open(ART / "model_meta.json"))["uplift_factor"]
-MODEL_VERSION.labels(version="v1").set(1)
+MODEL_VER = "v1"
+MODEL_VERSION.labels(version=MODEL_VER).set(1)
+
 
 
 gmean = float(priors["gmean"])
@@ -32,6 +37,13 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Include monitoring router
 from monitor import router as monitor_router
 app.include_router(monitor_router)
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    request.state.request_id = str(uuid.uuid4())[:8]  # short id like 'a3f7b9c2'
+    response = await call_next(request)
+    return response
+
 
 # --- Input schema ---
 class RentInput(BaseModel):
@@ -52,7 +64,7 @@ class RentInput(BaseModel):
 
 # --- Prediction route ---
 @app.post("/predict")
-def predict_rent(data: RentInput):
+def predict_rent(data: RentInput, request: Request):
     row = pd.DataFrame([data.dict()])
     # basic normalization
     for c in ["city","propertyType","furnish","internet","kitchen","shower","toilet","living","smokingInside","pets"]:
@@ -67,14 +79,49 @@ def predict_rent(data: RentInput):
     X_new[cat_cols] = X_new[cat_cols].astype("object")
 
     
-    # --- Monitoring counters ---
+    # ---- metrics + logging ----
     PRED_REQUESTS.inc()  # count every prediction request
+
+    # Log request (basic fields only)
+    logger.info(
+        "predict_request",
+        extra={
+            "event": "predict_request",
+            "model_version": MODEL_VER,
+            "request_id": request.state.request_id,
+            "area": float(row["areaSqm"].iloc[0]),
+            "city": str(row["city"].iloc[0]),
+            "pc4": str(row["pc4"].iloc[0]),
+        },
+    )
+
     try:
-        with predict_timer():  # measure how long prediction takes
+        with predict_timer():  # measure prediction time
             pred = float(pipe.predict(X_new)[0])
+
+        # Log success
+        logger.info(
+            "predict_success",
+            extra={
+                "event": "predict_success",
+                "model_version": MODEL_VER,
+                "request_id": request.state.request_id,
+                "predicted_rent": round(pred, 2),
+            },
+        )
+
         return {"predicted_rent": round(pred, 2)}
-    except Exception as e:
+
+    except Exception:
         PRED_ERRORS.inc()  # count any failed predictions
+        logger.error(
+            "predict_error",
+            extra={
+                "event": "predict_error",
+                "model_version": MODEL_VER,
+                "request_id": request.state.request_id,
+            },
+        )
         raise
 
 
@@ -85,7 +132,7 @@ def home():
     return open("static/index.html", "r", encoding="utf-8").read()
 
 
-# --- Version endpoint (optional but nice) ---
+# --- Version endpoint 
 @app.get("/version")
 def version():
     return {"model_version": "v1"}
