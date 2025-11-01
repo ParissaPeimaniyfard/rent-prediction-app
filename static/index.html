@@ -171,5 +171,32 @@
       }
     });
   </script>
+
+<!-- Feedback card -->
+<div class="card">
+  <h2 style="margin-top:0">Feedback</h2>
+  <p style="margin:6px 0 12px 0;">
+    Was the prediction close? Leave a quick rating (1–5) and, if you know it, the actual rent.
+  </p>
+
+  <form action="/feedback" method="post" style="display:grid; gap:8px; max-width:420px;">
+    <label for="score">How close was it? (1 = poor, 5 = great)</label>
+    <select id="score" name="score" required>
+      <option value="" selected disabled>Choose…</option>
+      <option value="1">1 ⭐</option>
+      <option value="2">2 ⭐⭐</option>
+      <option value="3">3 ⭐⭐⭐</option>
+      <option value="4">4 ⭐⭐⭐⭐</option>
+      <option value="5">5 ⭐⭐⭐⭐⭐</option>
+    </select>
+
+    <label for="actual_rent">Actual rent (optional, €)</label>
+    <input id="actual_rent" name="actual_rent" type="number" step="0.01" min="0" placeholder="e.g., 1250" />
+
+    <button type="submit">Send feedback</button>
+    <small style="color:#666">We only store your rating and number you enter—no personal data.</small>
+  </form>
+</div>
+
 </body>
 </html>

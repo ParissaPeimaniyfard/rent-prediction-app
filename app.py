@@ -8,6 +8,9 @@ import joblib, json, pandas as pd, numpy as np
 from logging_setup import logger
 from pathlib import Path
 from monitor import PRED_REQUESTS, PRED_ERRORS, predict_timer, MODEL_VERSION
+from fastapi import Form
+from fastapi.responses import RedirectResponse
+import os, time
 
 
 
@@ -125,6 +128,26 @@ def predict_rent(data: RentInput, request: Request):
         raise
 
 
+
+
+# --- Feedback route ---
+@app.post("/feedback")
+def feedback(score: int = Form(...), actual_rent: float | None = Form(None)):
+    os.makedirs("artifacts", exist_ok=True)
+    path = ART / "feedback.csv"
+
+    # create file with header if it doesn't exist
+    if not path.exists():
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("ts,score,actual_rent\n")
+
+    # append one new row
+    ts = int(time.time())
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(f"{ts},{score},{'' if actual_rent is None else actual_rent}\n")
+
+    # simple UX: go back to home
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/", response_class=HTMLResponse)
