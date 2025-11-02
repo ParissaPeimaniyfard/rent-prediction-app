@@ -7,7 +7,7 @@ from pydantic import BaseModel
 import joblib, json, pandas as pd, numpy as np
 from logging_setup import logger
 from pathlib import Path
-from monitor import PRED_REQUESTS, PRED_ERRORS, predict_timer, MODEL_VERSION
+from monitor import PRED_REQUESTS, PRED_ERRORS, predict_timer, MODEL_VERSION, FEEDBACK_SUBMITTED
 from fastapi import Form
 from fastapi.responses import RedirectResponse
 import os, time
@@ -136,6 +136,18 @@ def feedback(score: int = Form(...), actual_rent: float | None = Form(None)):
     os.makedirs("artifacts", exist_ok=True)
     path = ART / "feedback.csv"
 
+
+    FEEDBACK_SUBMITTED.inc()
+    logger.info(
+        "feedback_submitted",
+        extra={
+            "event": "feedback_submitted",
+            "model_version": MODEL_VER,
+            "score": int(score),
+            "has_actual_rent": actual_rent is not None,
+        },
+    )
+    
     # create file with header if it doesn't exist
     if not path.exists():
         with open(path, "w", encoding="utf-8") as f:

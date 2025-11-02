@@ -34,6 +34,12 @@ MODEL_VERSION = Gauge(
     ["version"]
 )
 
+# after PRED_LATENCY
+FEEDBACK_SUBMITTED = Counter(
+    "feedback_submitted_total",
+    "Number of feedback submissions received."
+)
+
 
 @contextmanager
 def predict_timer():
